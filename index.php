@@ -122,10 +122,6 @@
         // Fit bounds if markers exist
         if (typeof google !== 'undefined' && typeof google.maps !== 'undefined' && markers.length > 0) {
           map.fitBounds(bounds);
-          var listener = google.maps.event.addListener(map, "idle", function () {
-            map.setZoom(map.getZoom() + 1);
-            google.maps.event.removeListener(listener);
-          });
         }
       });
     }
