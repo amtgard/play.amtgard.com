@@ -57,7 +57,57 @@
     function playAmtgardParks(latitude, longitude, start, end, distance, limit) {
       playAmtgard("Park/PlayAmtgard0", latitude, longitude, start, end, distance, limit, function (data) {
         $('#park-days tbody').html('');
+
+        // Initialize map if Google Maps API is loaded
+        if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
+          console.log("Google Maps API loaded, initializing map...");
+          initMap(latitude, longitude);
+          clearMarkers();
+          var bounds = new google.maps.LatLngBounds();
+
+          if (!window.infoWindow) {
+            window.infoWindow = new google.maps.InfoWindow();
+
+            // Close InfoWindow on map click
+            google.maps.event.addListener(map, "click", function () {
+              window.infoWindow.close();
+            });
+
+            // Close InfoWindow on Esc key
+            document.addEventListener('keydown', function (event) {
+              if (event.key === "Escape") {
+                window.infoWindow.close();
+              }
+            });
+          }
+        } else {
+          console.error("Google Maps API NOT loaded.");
+        }
+
         $.each(data.ParkDays, function (i, e) {
+          // Add marker to map
+          if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
+            var marker = new google.maps.Marker({
+              position: { lat: e.Latitude, lng: e.Longitude },
+              map: map,
+              title: e.ParkName
+            });
+
+            var contentString = '<div>' +
+              '<p><b>Next Meeting:</b> ' + moment(e.NextDay + ' ' + e.Time, 'YYYY-MM-DD HH:mm:ss').format('dddd, MMM Do h:mm A') + '</p>' +
+              '<p><a href="http://maps.google.com/maps?z=14&t=m&q=loc:' + e.Latitude + ',' + e.Longitude + '" target="_blank">Get Directions</a></p>' +
+              '</div>';
+
+            marker.addListener("click", function () {
+              window.infoWindow.setOptions({ headerContent: e.ParkName });
+              window.infoWindow.setContent(contentString);
+              window.infoWindow.open(map, marker);
+            });
+
+            markers.push(marker);
+            bounds.extend(marker.getPosition());
+          }
+
           $('#park-days tbody').append(
             '<tr href="http://maps.google.com/maps?z=14&t=m&q=loc:' + e.Latitude + ',' + e.Longitude + '">' +
             '<td class="long-col"><a href="https://ork.amtgard.com/orkui/index.php?Route=Kingdom/index/' + e.KingdomId + '">' + e.KingdomName + '</a></td>' +
@@ -68,6 +118,15 @@
             '</tr>'
           );
         });
+
+        // Fit bounds if markers exist
+        if (typeof google !== 'undefined' && typeof google.maps !== 'undefined' && markers.length > 0) {
+          map.fitBounds(bounds);
+          var listener = google.maps.event.addListener(map, "idle", function () {
+            map.setZoom(map.getZoom() + 1);
+            google.maps.event.removeListener(listener);
+          });
+        }
       });
     }
 
@@ -107,20 +166,51 @@
       $('table').on('click', 'tbody>tr', function (e) {
         window.location.href = $(this).attr('href');
       });
-        
-        <?php if (isset($_GET['near']) && strlen(trim($_GET['near'])) > 0): ?>
-          geocode('<?= $_GET['near'] ?>', function (geocode) {
-            //playAmtgardEvents(geocode.Result.Location.location.lat, geocode.Result.Location.location.lng, '<?= date("Y-m-d") ?>', '<?= date("Y-m-d", strtotime("+6 month")) ?>', 500, 12);
-            playAmtgardParks(geocode.Result.Location.location.lat, geocode.Result.Location.location.lng, '<?= date("Y-m-d") ?>', '<?= date("Y-m-d", strtotime("+1 week")) ?>', 100, 12);
-          });
-        <?php else: ?>
-          navigator.geolocation.getCurrentPosition(function (position) {
-            //playAmtgardEvents(position.coords.latitude, position.coords.longitude, '<?= date("Y-m-d") ?>', '<?= date("Y-m-d", strtotime("+6 month")) ?>', 500, 12);
-            playAmtgardParks(position.coords.latitude, position.coords.longitude, '<?= date("Y-m-d") ?>', '<?= date("Y-m-d", strtotime("+1 week")) ?>', 100, 12);
-          });
-        <?php endif; ?>
-      });
 
+      <?php if (isset($_GET['near']) && strlen(trim($_GET['near'])) > 0): ?>
+        geocode('<?= $_GET['near'] ?>', function (geocode) {
+          //playAmtgardEvents(geocode.Result.Location.location.lat, geocode.Result.Location.location.lng, '<?= date("Y-m-d") ?>', '<?= date("Y-m-d", strtotime("+6 month")) ?>', 500, 12);
+          playAmtgardParks(geocode.Result.Location.location.lat, geocode.Result.Location.location.lng, '<?= date("Y-m-d") ?>', '<?= date("Y-m-d", strtotime("+1 week")) ?>', 100, 12);
+        });
+      <?php else: ?>
+        navigator.geolocation.getCurrentPosition(function (position) {
+          //playAmtgardEvents(position.coords.latitude, position.coords.longitude, '<?= date("Y-m-d") ?>', '<?= date("Y-m-d", strtotime("+6 month")) ?>', 500, 12);
+          playAmtgardParks(position.coords.latitude, position.coords.longitude, '<?= date("Y-m-d") ?>', '<?= date("Y-m-d", strtotime("+1 week")) ?>', 100, 12);
+        });
+      <?php endif; ?>
+    });
+
+  </script>
+  <script>
+    var map;
+    var markers = [];
+
+    function initMap(lat, lng) {
+      if (!map) {
+        map = new google.maps.Map(document.getElementById('map'), {
+          center: { lat: lat, lng: lng },
+          zoom: 8,
+          gestureHandling: 'greedy'
+        });
+      } else {
+        map.setCenter({ lat: lat, lng: lng });
+      }
+    }
+
+    function clearMarkers() {
+      for (var i = 0; i < markers.length; i++) {
+        markers[i].setMap(null);
+      }
+      markers = [];
+    }
+  </script>
+  <script
+    src="//maps.googleapis.com/maps/api/js?key=AIzaSyBmD6akS8ZoDDvyNJ2_3dfhXcESpUqRD5g&loading=async&callback=initMapAsync&v=weekly&libraries=marker"
+    async defer></script>
+  <script>
+    function initMapAsync() {
+      // Placeholder callback if needed, though we init manually on search
+    }
   </script>
   <style>
     @media only screen and (max-width: 768px) {
@@ -156,6 +246,24 @@
     h4 {
       font-size: 1.2em;
     }
+
+    #map {
+      height: 400px;
+      width: 100%;
+      margin-bottom: 20px;
+    }
+
+    @media only screen and (max-width: 600px) {
+      #map {
+        position: relative;
+        left: 50%;
+        right: 50%;
+        margin-left: -50vw;
+        margin-right: -50vw;
+        width: 100vw;
+        border-radius: 0;
+      }
+    }
   </style>
 
   <!-- Global site tag (gtag.js) - Google Analytics -->
@@ -190,6 +298,7 @@
           </div>
           <div class="col s12 m12 l12">
             <h2>Parks</h2>
+            <div id="map"></div>
             Within 100 miles and the next week.
             <table id='park-days'>
               <thead>
