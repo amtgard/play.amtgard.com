@@ -84,9 +84,30 @@
           console.error("Google Maps API NOT loaded.");
         }
 
+        var uniqueParks = {};
+
         $.each(data.ParkDays, function (i, e) {
-          // Add marker to map
-          if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
+          // Track unique parks for map pins
+          var currentDateTime = moment(e.NextDay + ' ' + e.Time, 'YYYY-MM-DD HH:mm:ss');
+          if (!uniqueParks[e.ParkId] || currentDateTime.isBefore(uniqueParks[e.ParkId].time)) {
+            uniqueParks[e.ParkId] = { entry: e, time: currentDateTime };
+          }
+
+          $('#park-days tbody').append(
+            '<tr href="http://maps.google.com/maps?z=14&t=m&q=loc:' + e.Latitude + ',' + e.Longitude + '">' +
+            '<td class="long-col"><a href="https://ork.amtgard.com/orkui/index.php?Route=Kingdom/index/' + e.KingdomId + '">' + e.KingdomName + '</a></td>' +
+            '<td><a href="https://ork.amtgard.com/orkui/index.php?Route=Park/index/' + e.ParkId + '">' + e.ParkName + '</a></td>' +
+            '<td class="long-col">' + e.Purpose + '</td>' +
+            '<td>' + moment(e.NextDay + ' ' + e.Time, 'YYYY-MM-DD HH:mm:ss').format('dddd, MMM Do h:mm A') + '</td>' +
+            '<td class="long-col"><a href="http://maps.google.com/maps?z=14&t=m&q=loc:' + e.Latitude + ',' + e.Longitude + '">' + e.Address + '</a></td>' +
+            '</tr>'
+          );
+        });
+
+        // Add markers for unique parks
+        if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
+          $.each(uniqueParks, function (id, val) {
+            var e = val.entry;
             var marker = new google.maps.Marker({
               position: { lat: e.Latitude, lng: e.Longitude },
               map: map,
@@ -106,18 +127,8 @@
 
             markers.push(marker);
             bounds.extend(marker.getPosition());
-          }
-
-          $('#park-days tbody').append(
-            '<tr href="http://maps.google.com/maps?z=14&t=m&q=loc:' + e.Latitude + ',' + e.Longitude + '">' +
-            '<td class="long-col"><a href="https://ork.amtgard.com/orkui/index.php?Route=Kingdom/index/' + e.KingdomId + '">' + e.KingdomName + '</a></td>' +
-            '<td><a href="https://ork.amtgard.com/orkui/index.php?Route=Park/index/' + e.ParkId + '">' + e.ParkName + '</a></td>' +
-            '<td class="long-col">' + e.Purpose + '</td>' +
-            '<td>' + moment(e.NextDay + ' ' + e.Time, 'YYYY-MM-DD HH:mm:ss').format('dddd, MMM Do h:mm A') + '</td>' +
-            '<td class="long-col"><a href="http://maps.google.com/maps?z=14&t=m&q=loc:' + e.Latitude + ',' + e.Longitude + '">' + e.Address + '</a></td>' +
-            '</tr>'
-          );
-        });
+          });
+        }
 
         // Fit bounds if markers exist
         if (typeof google !== 'undefined' && typeof google.maps !== 'undefined' && markers.length > 0) {
