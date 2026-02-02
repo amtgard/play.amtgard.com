@@ -54,6 +54,56 @@
       });
     }
 
+    function fetchWeather(lat, lng, dateTimeStr, callback) {
+      $.ajax({
+        url: "https://api.weather.gov/points/" + lat + "," + lng,
+        headers: { "User-Agent": "(play.amtgard.com, webmaster@amtgard.com)" },
+        dataType: 'json',
+        success: function (data) {
+          if (!data || !data.properties || !data.properties.forecastHourly) {
+            callback(null);
+            return;
+          }
+          $.ajax({
+            url: data.properties.forecastHourly,
+            headers: { "User-Agent": "(play.amtgard.com, webmaster@amtgard.com)" },
+            dataType: 'json',
+            success: function (forecast) {
+              if (!forecast || !forecast.properties || !forecast.properties.periods) {
+                callback(null);
+                return;
+              }
+              var periods = forecast.properties.periods;
+              var target = dateTimeStr;
+              var found = null;
+              for (var i = 0; i < periods.length; i++) {
+                var p = periods[i];
+                var start = p.startTime.substring(0, 19).replace('T', ' ');
+                var end = p.endTime.substring(0, 19).replace('T', ' ');
+                if (target >= start && target < end) {
+                  found = p;
+                  break;
+                }
+              }
+              if (found) {
+                var temp = found.temperature;
+                var precip = 0;
+                if (found.probabilityOfPrecipitation && found.probabilityOfPrecipitation.value != null) {
+                  precip = found.probabilityOfPrecipitation.value;
+                }
+                var shortForecast = found.shortForecast ? found.shortForecast : '';
+                callback(temp + "°F, " + precip + "% \u26C6 " + shortForecast);
+              } else {
+                callback(null);
+              }
+            },
+            error: function () { callback(null); }
+          });
+        },
+        error: function () { callback(null); }
+      });
+    }
+
     function playAmtgardParks(latitude, longitude, start, end, distance, limit) {
       playAmtgard("Park/PlayAmtgard0", latitude, longitude, start, end, distance, limit, function (data) {
         $('#park-days tbody').html('');
@@ -114,15 +164,30 @@
               title: e.ParkName
             });
 
-            var contentString = '<div>' +
-              '<p><b>Next Meeting:</b> ' + moment(e.NextDay + ' ' + e.Time, 'YYYY-MM-DD HH:mm:ss').format('dddd, MMM Do h:mm A') + '</p>' +
-              '<p><a href="http://maps.google.com/maps?z=14&t=m&q=loc:' + e.Latitude + ',' + e.Longitude + '" target="_blank">Get Directions</a></p>' +
-              '</div>';
+            var meetingTimeStr = moment(e.NextDay + ' ' + e.Time, 'YYYY-MM-DD HH:mm:ss').format('dddd, MMM Do h:mm A');
 
             marker.addListener("click", function () {
+              var contentDiv = document.createElement('div');
+              contentDiv.innerHTML = '<div>' +
+                '<p><b>Next Meeting:</b> ' + meetingTimeStr + '</p>' +
+                '<p id="weather-display"><i>Loading forecast...</i></p>' +
+                '<p><a href="http://maps.google.com/maps?z=14&t=m&q=loc:' + e.Latitude + ',' + e.Longitude + '" target="_blank">Get Directions</a></p>' +
+                '</div>';
+
               window.infoWindow.setOptions({ headerContent: e.ParkName });
-              window.infoWindow.setContent(contentString);
+              window.infoWindow.setContent(contentDiv);
               window.infoWindow.open(map, marker);
+
+              fetchWeather(e.Latitude, e.Longitude, e.NextDay + ' ' + e.Time, function (result) {
+                var pWeather = contentDiv.querySelector('#weather-display');
+                if (pWeather) {
+                  if (result) {
+                    pWeather.innerHTML = result;
+                  } else {
+                    pWeather.style.display = 'none';
+                  }
+                }
+              });
             });
 
             markers.push(marker);
