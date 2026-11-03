@@ -1,0 +1,6 @@
+services:
+  app:
+    ports:
+      - "31081:80"
+    container_name: play-green
+    hostname: play-green

@@ -1,0 +1,6 @@
+services:
+  app:
+    ports:
+      - "31080:80"
+    container_name: play-blue
+    hostname: play-blue
