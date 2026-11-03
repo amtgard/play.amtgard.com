@@ -1,0 +1,36 @@
+# Production blue-green at /var/www/play.amtgard.com. Copy to .greenblue (do not commit).
+#
+#   sudo /var/gb/generic-green-blue-deployment/bin/gb /var/www/play.amtgard.com deploy
+#   sudo /var/gb/generic-green-blue-deployment/bin/gb /var/www/play.amtgard.com revert
+#
+# First deploy: legacy container "play" is still running, so gb bootstraps
+# green, flips host nginx to green, then stops the legacy container. The old slot
+# stays running afterwards for `gb revert`.
+# Host nginx templates preserve the current Certbot TLS (cert paths are in the
+# template, not the live site file). If cert paths ever change, update the
+# templates here, not just the live site file - gb overwrites it on each deploy.
+
+GB_MODE="prod"
+
+GB_PROJECT_NAME="amtgard-play"
+GB_CONTAINER_APP_DIR="/var/www/play.amtgard.com"
+GB_COMPOSE_SERVICE="app"
+
+GB_LEGACY_CONTAINER="play"
+GB_BLUE_CONTAINER="play-blue"
+GB_GREEN_CONTAINER="play-green"
+GB_BLUE_PORT="31080"
+GB_GREEN_PORT="31081"
+
+GB_WEB_COMPOSE_PROJECT="amtgard-play"
+GB_WEB_COMPOSE_BASE="docker/compose.prod.yml"
+GB_WEB_COMPOSE_SLOT="docker/compose.%slot%.yml"
+GB_STATE_DIR="/var/lib/amtgard-play"
+
+GB_NGINX_STRATEGY="site-file"
+GB_NGINX_SITE_NAME="play.amtgard.com"
+GB_NGINX_TEMPLATE="host/nginx.%slot%.conf"
+
+GB_DEPLOY_STACKS="web"
+GB_APP_INSTALL="none"
+GB_GIT_BRANCH="main"

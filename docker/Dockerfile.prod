@@ -1,0 +1,30 @@
+FROM ubuntu:24.04
+
+RUN apt-get update
+RUN DEBIAN_FRONTEND=noninteractive apt-get -y install tzdata
+RUN apt-get update && apt-get install -y less gzip wget nginx zip unzip git nano software-properties-common ca-certificates lsb-release
+RUN add-apt-repository -y ppa:ondrej/php && apt-get update
+RUN apt-get install --no-install-recommends -y php8.4
+RUN apt-get install -y php8.4-fpm php8.4-cli php8.4-common php8.4-mysql php8.4-mbstring php8.4-curl php8.4-xml
+
+# CVE-2026-109618 / CVE-2026-109619 - PHP 8.4.27+ required, enforced at build (same guard as IDP).
+RUN php -r '$v=PHP_VERSION; if (version_compare($v, "8.4.27", "<")) { fwrite(STDERR, "Require PHP >= 8.4.27, got {$v}\n"); exit(1); }'
+
+COPY docker/php-fpm-security.ini /etc/php/8.4/fpm/conf.d/99-security.ini
+COPY docker/php-fpm-security.ini /etc/php/8.4/cli/conf.d/99-security.ini
+
+RUN mkdir -p /var/www/app
+COPY docker/nginx.app.config /etc/nginx/sites-available/app
+RUN rm /etc/nginx/sites-enabled/*
+RUN ln -s /etc/nginx/sites-available/app /etc/nginx/sites-enabled/app
+
+# App code is baked into the image so each slot keeps its own release.
+# Only index.php + .htaccess are runtime files; .env (play) is intentionally
+# NOT copied - index.php does not read it server-side.
+COPY index.php .htaccess /var/www/app/
+RUN chown -R www-data:www-data /var/www/app
+
+WORKDIR /var/www
+COPY docker/heartbeat.sh /var/www/heartbeat.sh
+RUN chmod +x heartbeat.sh
+CMD ./heartbeat.sh
